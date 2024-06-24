@@ -1,0 +1,148 @@
+<!-- templates/index.html -->
+
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>OpenEO Spatial Extent Selector</title>
+    <style>
+        #map {
+            height: 500px;
+            width: 100%;
+        }
+
+        ul {
+            margin: 0;
+        }
+    </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+</head>
+
+<body>
+    <h1>OpenEO空間</h1>
+    <div id="map"></div>
+    <form method="post" action="/process">
+        <div>
+            <input type="hidden" id="west" name="west">
+            <input type="hidden" id="south" name="south">
+            <input type="hidden" id="east" name="east">
+            <input type="hidden" id="north" name="north">
+            <input type="hidden" id="center_lat" name="center_lat">
+            <input type="hidden" id="center_lng" name="center_lng">
+            <input type="hidden" id="zoom_level" name="zoom_level">
+        </div>
+
+        <div>
+            <label for="start_date">始め:</label>
+            <input type="date" id="start_date" name="start_date" value="2024-03-01">
+
+            <label for="end_date">終わり:</label>
+            <input type="date" id="end_date" name="end_date" value="2024-03-31">
+        </div>
+
+        <div>
+            <label for="image_type">画像タイプ</label>
+            <ul>
+                <li>
+                    <input type="radio" id="rgb" name="image_type" value="rgb" checked>
+                    <label for="rgb">RGB(トゥルー画像)</label>
+                </li>
+                <li>
+                    <input type="radio" id="cir" name="image_type" value="cir">
+                    <label for="cir">CIR (植生を赤で強調)</label>
+                </li>
+                <li>
+                    <input type="radio" id="ndvi" name="image_type" value="ndvi">
+                    <label for="ndvi">NDVI (繁茂状況を強調)</label>
+                </li>
+                <li>
+                    <input type="radio" id="ndwi" name="image_type" value="ndwi">
+                    <label for="ndwi">NDWI (水の状況を強調)</label>
+                </li>
+            </ul>
+        </div>
+
+        <div>
+            <button type="submit">送信</button>
+        </div>
+
+        <div id="t0_date_container">
+            <!-- t0_date を表示するための要素 -->
+            <p>画像日時: <span id="t0_date"></span></p>
+        </div>
+
+    </form>
+
+
+    <script>
+        const map = L.map('map').setView([31.5934, 130.6573], 12);  // 桜島の座標を設定
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+        }).addTo(map);
+    </script>
+
+    {% if image_url %}
+    <script>
+        // JSON形式の文字列としてJinja2の変数を渡す
+        const south = JSON.parse('{{ south | tojson | safe }}');
+        const north = JSON.parse('{{ north | tojson | safe }}');
+        const west = JSON.parse('{{ west | tojson | safe }}');
+        const east = JSON.parse('{{ east | tojson | safe }}');
+        const imageUrl = '{{ image_url }}';
+        const centerLat = JSON.parse('{{ center_lat | tojson | safe }}');
+        const centerLng = JSON.parse('{{ center_lng | tojson | safe }}');
+        const zoomLevel = JSON.parse('{{ zoom_level | tojson | safe }}');
+        const t0Date = '{{ t0_date }}';
+
+        // 地図を現在の位置とズームレベルに設定
+        map.setView([centerLat, centerLng], zoomLevel);
+
+        // 画像オーバーレイを追加
+        L.imageOverlay(imageUrl, [[south, west], [north, east]]).addTo(map);
+
+        // t0_date をコンソールに出力
+        console.log("t0_date:", t0Date);
+
+        // t0_date を表示する要素に設定（西暦/月/日 にフォーマット）
+        const t0DateFormatted = new Date(t0Date).toLocaleDateString('ja-JP', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+
+        document.getElementById('t0_date').innerText = t0DateFormatted;
+
+    </script>
+    {% endif %}
+
+    <script>
+        let bounds;
+        map.on('click', (e) => {
+            if (bounds) {
+                map.removeLayer(bounds);
+            }
+            bounds = L.rectangle([[e.latlng.lat - 0.05, e.latlng.lng - 0.05], [e.latlng.lat + 0.05, e.latlng.lng + 0.05]], { color: "#ff7800", weight: 1 });
+            bounds.addTo(map);
+
+            const west = e.latlng.lng - 0.05;
+            const south = e.latlng.lat - 0.05;
+            const east = e.latlng.lng + 0.05;
+            const north = e.latlng.lat + 0.05;
+            document.getElementById('west').value = west;
+            document.getElementById('south').value = south;
+            document.getElementById('east').value = east;
+            document.getElementById('north').value = north;
+
+            // フォームに地図の中心座標とズームレベルを設定
+            document.getElementById('center_lat').value = map.getCenter().lat;
+            document.getElementById('center_lng').value = map.getCenter().lng;
+            document.getElementById('zoom_level').value = map.getZoom();
+
+            console.log(`West: ${west}, South: ${south}, East: ${east}, North: ${north}`);
+
+        });
+    </script>
+</body>
+
+</html>
